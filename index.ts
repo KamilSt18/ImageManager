@@ -1,15 +1,18 @@
-import express, { Express, Request, Response } from 'express';
-import dotenv from 'dotenv';
+import express, { Express, Request, Response } from "express"
+import dotenv from "dotenv"
+import { createResponse } from "./services/createResponse"
+import { router as imagesRoutes } from "./routes/imagesRoute"
 
-dotenv.config();
+dotenv.config()
 
-const app: Express = express();
-const port: string = process.env.PORT || "8000";
+const app: Express = express()
+const port: string = process.env.PORT || "8000"
+export const address: string = `http://localhost:${port}`
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello world');
-});
+app.use(express.json())
+
+app.use("/images", imagesRoutes)
 
 app.listen(port, () => {
-  console.log(`[Express]: Server is running at http://localhost:${port}`);
-});
+	console.log(`[Express]: Server is running at ${address}`)
+})
