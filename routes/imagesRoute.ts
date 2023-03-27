@@ -1,14 +1,26 @@
 import { Router, Response } from "express"
 import { createResponse } from "../services/createResponse"
-import { postImages } from "../constrollers/imagesController"
+import { deleteImage, getImage, getImages, postImage } from "../constrollers/imagesController"
 
 export const router = Router()
 
-router.post("/", postImages)
+router.get("/", getImages)
+
+router.get("/:id", getImage)
+
+router.post("/", postImage)
+
+router.delete("/:id", deleteImage)
 
 // Middleware - no endpoint matching
 router.use((_, res: Response) => {
 	res
 		.status(404)
-		.json(createResponse("No route found", "error", "404 - Not Found"))
+		.json(
+			createResponse(
+				"No route found for endpoint /images",
+				"error",
+				"404 - Not Found"
+			)
+		)
 })
