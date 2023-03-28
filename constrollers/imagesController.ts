@@ -5,23 +5,23 @@ import { address } from ".."
 import { ImageType } from "../models/ImageType"
 
 import { createResponse } from "../services/createResponse"
-import { addImage } from "../services/database/addImage"
-import { fetchImage } from "../services/database/fetchImage"
-import { fetchImages } from "../services/database/fetchImages"
-import { removeImage } from "../services/database/removeImage"
 import { downloadImage } from "../services/downloadImage"
 import { isValidUrl } from "../services/validators/isValidUrl"
 import { isFileImage } from "../services/validators/isFileImage"
 
-export const getImages = (_: Request, res: Response) => {
-	const imagesLocal = fetchImages()
-	res.send(imagesLocal)
+import { ObjectId } from "mongodb"
+
+const Image = require("../db/models/imageModel")
+
+export const getImages = async (_: Request, res: Response) => {
+	const images = await Image.find()
+	res.send(images)
 }
 
-export const getImage = (req: Request, res: Response) => {
+export const getImage = async (req: Request, res: Response) => {
 	const id = req.params.id
 
-	const image = fetchImage(id)
+	const image = await Image.findById(id)
 
 	// Check that the image exists
 	if (!image) {
@@ -70,13 +70,16 @@ export const postImage = async (req: Request, res: Response) => {
 					)
 				)
 
+		const id = new ObjectId()
+
 		const localImage: ImageType = {
+			_id: id,
 			sourceUrl: sourceUrl,
 			status: "queued",
 			dateAdded: new Date(),
 		}
 
-		const id = addImage(localImage)
+		await Image.create(localImage)
 
 		await downloadImage(sourceUrl, id, localImage)
 		
@@ -91,29 +94,33 @@ export const postImage = async (req: Request, res: Response) => {
 	}
 }
 
-export const deleteImage = (req: Request, res: Response) => {
+export const deleteImage = async (req: Request, res: Response) => {
 	try {
 		const id = req.params.id
-		const status = removeImage(id)
 
-		if (status)
+		const image = await Image.findById(id)
+
+		if (!image) {
 			return res
-				.status(200)
+				.status(404)
 				.json(
 					createResponse(
-						`The image with id ${id} has been removed!`,
-						"success",
-						"200 OK"
+						`Unable to delete image with id ${id}.`,
+						"error",
+						"404 - Not Found"
 					)
 				)
+		}
 
-		res
-			.status(404)
+		await image.deleteOne({ _id: id })
+
+		return res
+			.status(200)
 			.json(
 				createResponse(
-					`Unable to delete image with id ${id}.`,
-					"error",
-					"404 - Not Found"
+					`The image with id ${id} has been removed!`,
+					"success",
+					"200 OK"
 				)
 			)
 	} catch (error) {

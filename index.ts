@@ -1,9 +1,12 @@
-import express, { Express, Request, Response } from "express"
+import express, { Express } from "express"
 import dotenv from "dotenv"
-import { createResponse } from "./services/createResponse"
 import { router as imagesRoutes } from "./routes/imagesRoute"
 
 dotenv.config()
+
+const db = require('./config/db')
+
+db()
 
 const app: Express = express()
 const port: string = process.env.PORT || "8000"
