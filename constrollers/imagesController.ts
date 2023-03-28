@@ -1,75 +1,67 @@
 import { Request, Response } from "express"
+import mongoose from "mongoose"
 
+import { ObjectId } from "mongodb"
 import { address } from ".."
 
 import { ImageType } from "../models/ImageType"
 
-import { createResponse } from "../services/createResponse"
-import { downloadImage } from "../services/downloadImage"
-import { isValidUrl } from "../services/validators/isValidUrl"
-import { isFileImage } from "../services/validators/isFileImage"
+import { CreateResponse } from "../helpers/responses/CreateResponse"
 
-import { ObjectId } from "mongodb"
+import { validatePostImage } from "../helpers/validators/validatePostImage"
+import { ErrorResponse } from "../helpers/responses/ErrorResponse"
+import { removeImage } from "../services/removeImage"
+import { imageQueue } from "../services/bull/imageQueue"
 
 const Image = require("../db/models/imageModel")
 
 export const getImages = async (_: Request, res: Response) => {
-	const images = await Image.find()
-	res.send(images)
+	try {
+		const images = await Image.find()
+		res.send(images)
+	} catch (error) {
+		return ErrorResponse(error, res)
+	}
 }
 
 export const getImage = async (req: Request, res: Response) => {
-	const id = req.params.id
+	try {
+		const id = req.params.id
+		const image = await Image.findById(id)
 
-	const image = await Image.findById(id)
+		// Fix null returned from findById method for deleted image
+		if (!image) {
+			throw null
+		}
 
-	// Check that the image exists
-	if (!image) {
-		return res
-			.status(404)
-			.json(createResponse("Image not found", "error", "404 - Not Found"))
+		res.send({
+			sourceUrl: image.sourceUrl,
+			dateAdded: image.dateAdded,
+			status: image.status,
+			dateDownloaded: image.dateDownloaded,
+			url: image.url,
+		})
+	} catch (error) {
+		// The image doesn't exist
+		if (error instanceof mongoose.Error.CastError || !error) {
+			return res
+				.status(404)
+				.json(CreateResponse("Image not found", "error", "404 - Not Found"))
+		} else {
+			return ErrorResponse(error, res)
+		}
 	}
-
-	res.send(image)
 }
 
 export const postImage = async (req: Request, res: Response) => {
+	// Error handling
+	const errorResponse = validatePostImage(req)
+	if (errorResponse) {
+		return res.status(400).json(errorResponse)
+	}
+
 	try {
-		let { sourceUrl } = req.body
-		if (!sourceUrl) {
-			return res
-				.status(400)
-				.json(
-					createResponse(
-						"URL parameter is required",
-						"error",
-						"400 - Bad Request"
-					)
-				)
-		}
-
-		sourceUrl = isValidUrl(sourceUrl)
-		if (!isValidUrl(sourceUrl))
-			return res
-				.status(400)
-				.json(
-					createResponse(
-						"URL parameter must be a link",
-						"error",
-						"400 - Bad Request"
-					)
-				)
-		if (!isFileImage(sourceUrl.href))
-			return res
-				.status(400)
-				.json(
-					createResponse(
-						"Link doesn't point to image.",
-						"error",
-						"400 - Bad Request"
-					)
-				)
-
+		const sourceUrl = new URL(req.body.sourceUrl)
 		const id = new ObjectId()
 
 		const localImage: ImageType = {
@@ -81,16 +73,17 @@ export const postImage = async (req: Request, res: Response) => {
 
 		await Image.create(localImage)
 
-		await downloadImage(sourceUrl, id, localImage)
-		
+		await imageQueue.add({
+			id: id,
+			imagePath: sourceUrl,
+			localImage: localImage,
+		})
+
 		res
 			.status(201)
-			.json(createResponse(`${address}/images/${id}`, "success", "201 Created"))
+			.json(CreateResponse(`${address}/images/${id}`, "success", "201 Created"))
 	} catch (error) {
-		console.log(error)
-		return res
-			.status(500)
-			.json(createResponse("Error", "error", "500 - Internal Server Error"))
+		return ErrorResponse(error, res)
 	}
 }
 
@@ -104,7 +97,7 @@ export const deleteImage = async (req: Request, res: Response) => {
 			return res
 				.status(404)
 				.json(
-					createResponse(
+					CreateResponse(
 						`Unable to delete image with id ${id}.`,
 						"error",
 						"404 - Not Found"
@@ -112,21 +105,19 @@ export const deleteImage = async (req: Request, res: Response) => {
 				)
 		}
 
+		removeImage(image.url)
 		await image.deleteOne({ _id: id })
 
 		return res
 			.status(200)
 			.json(
-				createResponse(
+				CreateResponse(
 					`The image with id ${id} has been removed!`,
 					"success",
 					"200 OK"
 				)
 			)
 	} catch (error) {
-		console.log(error)
-		return res
-			.status(500)
-			.json(createResponse("Error", "error", "500 - Internal Server Error"))
+		return ErrorResponse(error, res)
 	}
 }

@@ -1,8 +1,13 @@
 import { Router, Response } from "express"
 
-import { createResponse } from "../services/createResponse"
+import { CreateResponse } from "../helpers/responses/CreateResponse"
 
-import { deleteImage, getImage, getImages, postImage } from "../constrollers/imagesController"
+import {
+	deleteImage,
+	getImage,
+	getImages,
+	postImage,
+} from "../constrollers/imagesController"
 
 export const router = Router()
 
@@ -19,7 +24,7 @@ router.use((_, res: Response) => {
 	res
 		.status(404)
 		.json(
-			createResponse(
+			CreateResponse(
 				"No route found for endpoint /images",
 				"error",
 				"404 - Not Found"

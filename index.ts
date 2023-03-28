@@ -1,12 +1,21 @@
-import express, { Express } from "express"
 import dotenv from "dotenv"
+dotenv.config()
+import express, { Express } from "express"
+import worker from './workers/worker';
+
 import { router as imagesRoutes } from "./routes/imagesRoute"
 
-dotenv.config()
+const mongodb = require('./services/mongodb/config/mongodb')
+const redisClient = require('./services/redis/config/redis')
 
-const db = require('./config/db')
+mongodb();
 
-db()
+(async () => {
+    await redisClient.connect();
+})();
+
+// Starting a worker
+worker.start();
 
 const app: Express = express()
 const port: string = process.env.PORT || "8000"
