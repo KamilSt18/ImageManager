@@ -22,6 +22,7 @@ const port: string = process.env.PORT || "8000"
 export const address: string = `http://localhost:${port}`
 
 app.use(express.json())
+app.use(express.urlencoded({ extended: false }));
 app.use('/', express.static('public'))
 
 app.use("/images", imagesRoutes)

@@ -13,11 +13,14 @@ import { ErrorResponse } from "../helpers/responses/ErrorResponse"
 import { removeImage } from "../services/removeImage"
 import { imageQueue } from "../services/bull/imageQueue"
 
-const Image = require("../db/models/imageModel")
+const Image = require("../services/mongodb/models/imageModel")
 
 export const getImages = async (_: Request, res: Response) => {
 	try {
 		const images = await Image.find()
+
+		if(images.length === 0) return res.status(200).json(CreateResponse("No images found in the database", "success", "200 OK"))
+
 		res.send(images)
 	} catch (error) {
 		return ErrorResponse(error, res)
@@ -30,9 +33,8 @@ export const getImage = async (req: Request, res: Response) => {
 		const image = await Image.findById(id)
 
 		// Fix null returned from findById method for deleted image
-		if (!image) {
-			throw null
-		}
+		if (!image) throw null
+		
 
 		res.send({
 			sourceUrl: image.sourceUrl,
@@ -42,23 +44,19 @@ export const getImage = async (req: Request, res: Response) => {
 			url: image.url,
 		})
 	} catch (error) {
-		// The image doesn't exist
-		if (error instanceof mongoose.Error.CastError || !error) {
-			return res
-				.status(404)
-				.json(CreateResponse("Image not found", "error", "404 - Not Found"))
-		} else {
-			return ErrorResponse(error, res)
-		}
+		// The image doesn't exist or is null
+		error instanceof mongoose.Error.CastError || !error
+			? res
+					.status(404)
+					.json(CreateResponse("Image not found", "error", "404 - Not Found"))
+			: ErrorResponse(error, res)
 	}
 }
 
 export const postImage = async (req: Request, res: Response) => {
 	// Error handling
 	const errorResponse = validatePostImage(req)
-	if (errorResponse) {
-		return res.status(400).json(errorResponse)
-	}
+	if (errorResponse) return res.status(400).json(errorResponse)
 
 	try {
 		const sourceUrl = new URL(req.body.sourceUrl)
@@ -79,7 +77,7 @@ export const postImage = async (req: Request, res: Response) => {
 			localImage: localImage,
 		})
 
-		res
+		return res
 			.status(201)
 			.json(CreateResponse(`${address}/images/${id}`, "success", "201 Created"))
 	} catch (error) {
@@ -92,18 +90,19 @@ export const deleteImage = async (req: Request, res: Response) => {
 		const id = req.params.id
 
 		const image = await Image.findById(id)
+		
+		// The image doesn't exist
+		if(!image) throw null
 
-		if (!image) {
-			return res
-				.status(404)
-				.json(
+		// The image is in the queue
+		if (!image.url) return res.status(404).json(
 					CreateResponse(
-						`Unable to delete image with id ${id}.`,
+						`The image with id ${id} is in the queue.`,
 						"error",
-						"404 - Not Found"
+						"400 - Bad Request"
 					)
 				)
-		}
+		
 
 		removeImage(image.url)
 		await image.deleteOne({ _id: id })
@@ -118,6 +117,10 @@ export const deleteImage = async (req: Request, res: Response) => {
 				)
 			)
 	} catch (error) {
-		return ErrorResponse(error, res)
+		error instanceof mongoose.Error.CastError || !error
+			? res
+					.status(404)
+					.json(CreateResponse("Image not found", "error", "404 - Not Found"))
+			: ErrorResponse(error, res)
 	}
 }

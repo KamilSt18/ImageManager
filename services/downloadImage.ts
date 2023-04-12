@@ -1,6 +1,5 @@
 import axios from "axios"
 import * as fs from "fs"
-import Queue from "bull"
 
 import { ObjectId } from "mongodb"
 
@@ -15,7 +14,7 @@ export async function downloadImage(
 	id: ObjectId,
 	localImage: ImageType
 ): Promise<boolean> {
-	const Image = require("../db/models/imageModel")
+	const Image = require("../services/mongodb/models/imageModel")
 
 	const response = await axios.get(sourceUrl.href, { responseType: "stream" })
 	const filenameSourceUrl = sourceUrl.pathname.split("/").at(-1)
