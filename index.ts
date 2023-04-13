@@ -1,15 +1,32 @@
-import express, { Express, Request, Response } from 'express';
-import dotenv from 'dotenv';
+import dotenv from "dotenv"
+dotenv.config()
+import express, { Express } from "express"
+import worker from './workers/worker';
 
-dotenv.config();
+import { router as imagesRoutes } from "./routes/imagesRoute"
 
-const app: Express = express();
-const port: string = process.env.PORT || "8000";
+const mongodb = require('./services/mongodb/config/mongodb')
+const redisClient = require('./services/redis/config/redis')
 
-app.get('/', (req: Request, res: Response) => {
-  res.send('Hello world');
-});
+mongodb();
+
+(async () => {
+    await redisClient.connect();
+})();
+
+// Starting a worker
+worker.start();
+
+const app: Express = express()
+const port: string = process.env.PORT || "8000"
+export const address: string = `http://localhost:${port}`
+
+app.use(express.json())
+app.use(express.urlencoded({ extended: false }));
+app.use('/', express.static('public'))
+
+app.use("/images", imagesRoutes)
 
 app.listen(port, () => {
-  console.log(`[Express]: Server is running at http://localhost:${port}`);
-});
+	console.log(`[Express]: Server is running at ${address}`)
+})
